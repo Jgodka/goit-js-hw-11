@@ -17,7 +17,7 @@ btnLoadMoreEl.style.display = 'none';
 formEl.addEventListener('submit', onSearch);
 btnLoadMoreEl.addEventListener('click', onBtnLoadMore);
 
-function onSearch(evt) {
+async function onSearch(evt) {
   evt.preventDefault();
 
   page = 1;
@@ -25,20 +25,27 @@ function onSearch(evt) {
 
   const name = inputEl.value.trim();
 
-  if (name !== '') {
-    addPixabay(name);
-  } else {
-    statusBtn(btnLoadMoreEl);
-    return Notiflix.Notify.failure(
-      'Sorry, there are no images matching your search query. Please try again.'
-    );
+  try {
+    if (name !== '') {
+      const response = await addPixabay(name, page);
+      await message(response.data.hits.length, response.data.total);
+      await createMarkup(response.data);
+    } else {
+      btnLoadMoreEl.style.display = 'none';
+      return Notiflix.Notify.failure(
+        'Sorry, there are no images matching your search query. Please try again.'
+      );
+    }
+  } catch (error) {
+    console.log('ERROR', error);
   }
 }
-
-function onBtnLoadMore() {
+async function onBtnLoadMore() {
   const name = inputEl.value.trim();
   page += 1;
-  addPixabay(name, page);
+  const response = await addPixabay(name, page);
+  await message(response.data.hits.length, response.data.total);
+  await createMarkup(response.data);
 }
 
 async function addPixabay(name, page) {
@@ -55,16 +62,9 @@ async function addPixabay(name, page) {
       per_page: 40,
     },
   };
+  const response = await axios.get(BASE_URL, options);
 
-  try {
-    const response = await axios.get(BASE_URL, options);
-
-    message(response.data.hits.length, response.data.total);
-
-    createMarkup(response.data);
-  } catch (error) {
-    console.log(error);
-  }
+  return response;
 }
 
 function createMarkup(arr) {
@@ -115,30 +115,29 @@ const simpleLightBox = new SimpleLightbox('.gallery a', {
   captionDelay: 250,
 });
 
-function message(length, totalHits) {
+function message(length, totalHits, page) {
   if (length === 0) {
+    btnLoadMoreEl.style.display = 'none';
     Notiflix.Notify.failure(
       'Sorry, there are no images matching your search query. Please try again.'
     );
+
     return;
   }
-
+  Notiflix.Notify.success(`Hooray! We found ${totalHits} images.`);
   if (page === 1) {
     btnLoadMoreEl.style.display = 'flex';
-    Notiflix.Notify.success(`Hooray! We found ${totalHits} images.`);
-    return;
   }
 
+  if (length >= 40) {
+    btnLoadMoreEl.style.display = 'flex';
+  }
   if (length < 40) {
-    statusBtn(btnLoadMoreEl);
-
+    btnLoadMoreEl.style.display = 'none';
     Notiflix.Notify.info(
       "We're sorry, but you've reached the end of search results."
     );
+
     return;
   }
-}
-
-function statusBtn(btnLoadMoreEl) {
-  btnLoadMoreEl.style.display = 'none';
 }
